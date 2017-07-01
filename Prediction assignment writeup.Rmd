@@ -1,0 +1,64 @@
+---
+title: "How well did they do their barbell lifts?"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Goal
+The goal of this project is to predict the manner in which six participants did several exercises, using data from accelerometers on the belt, forearm, arm, and dumbell. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways (A - E). More information on the data is available from the website: http://groupware.les.inf.puc-rio.br/har.
+
+
+## Input data
+The data is downloaded from the website. Data exploration shows that the filling degree of a lot of columns is (less than) 2%. These columns are removed and are not used in the prediction model. The columns with index and timestamp info are removed as well.
+
+```{r read, explore and clean data}
+dat <- read.csv("./pml-training.csv")
+
+## A lot of columns contain NA or empty cells. Remove these columns
+NAorEmpty <- colSums(is.na(dat) | dat == "")
+dat <- dat[,NAorEmpty == 0] ## 100 variables are removed from the dataset
+
+## drop index and timestamp info
+dat <- dat[,-c(1,2,3,4,5,6,7)]
+table(dat$classe) ## data is more or less evenly distributed over the several classes
+```
+
+## Split the data into training and probe dataset
+The prediction model is trained on a subset (70%) of the data, the training data set. The out-of-sample error is determined by using the model to predict the remaining (30%) of the data, the probe set.  
+
+```{r split data, warning = FALSE, message=FALSE}
+library(caret)
+set.seed(33833)
+
+inTrain <- createDataPartition(y = dat$classe , p=0.7, list=FALSE)
+training <- dat[inTrain,]
+probe <- dat[-inTrain,]
+```
+
+
+## Train a RF model using cross validation and determine out-of-sample error
+A random forest model is trained on the training data set, using k-cross validation (k=3). The out-of-sample error is determined by using the model to predict the data in the probe set.
+
+```{r train rf model, warning = FALSE, message=FALSE}
+
+cv <- trainControl(method = "cv", number = 3)
+modFit <- train(classe ~. , data = training, method = "rf", trainControl = cv, verbose = FALSE)
+
+confusionMatrix(predict(modFit, newdata = probe), probe$classe)
+```
+
+The out-of-sample error (inaccuracy in probe data set) can be read above (1-reported accuracy). 
+
+
+## Use the model to predict the data in the test set
+
+```{r predict data in test set}
+testing <- read.csv("./pml-testing.csv")
+testing <- testing[,NAorEmpty == 0]
+predict(modFit, newdata = testing)
+```
+
+Submission of these predictions to the Course Project Prediction Quiz resulted in 20/20 points!
